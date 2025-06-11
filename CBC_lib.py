@@ -1,11 +1,29 @@
 import numpy as np
 from scipy.fft import fft
 from scipy.signal import find_peaks
+from daqhats import mcc128, AnalogInputRange, AnalogInputMode, mcc152
+import os
 
 # ---------------------------
 # Controller Logic
 # ---------------------------
 
+def start_hats():
+    dac = mcc152(1)
+    adc = mcc128(0)
+    dac.a_out_write(1, 2.5)
+
+def spin_up(F_spin_up, omega_spin_up, pause_event, stop_event, address=1,):
+    # Pin Core
+    os.sched_setaffinity(0, {1})
+    dac = mcc152(1)
+    # While process is active
+    while not stop_event.is_set():
+        # if pause event is set then the 
+        pause_event.wait()
+        dac.a_out_write()
+        spin_up(F_spin_up.value, omega_spin_up)
+    
 def get_traj(Four_coeffs, omega):
     wavenums = np.arange(Four_coeffs.shape[0])
     def x_star(t):
@@ -32,6 +50,16 @@ def control_input(x, v, x_star_func, x_dot_star_func, kp, kd, t):
 # ---------------------------
 # Fourier Tools
 # ---------------------------
+def segment_signal(signal, fs):
+    Ts = 1/fs
+    wl = estimate_wavelength(signal[int(10*fs):], fs)
+    wl_idx = int(round(wl['samples']))
+    
+    end_idx = np.where(np.abs(signal) <= 1e-3)[0][-1]
+    num_periods = int(35 / (wl_idx * Ts))
+    seg_start = end_idx - wl_idx * num_periods
+    seg = signal[seg_start:end_idx]
+    return seg, wl
 
 def get_four_coeffs(signal, m, omega, fs):
     n = len(signal)
@@ -82,87 +110,49 @@ def estimate_dominant_freq(signal, fs):
     return peak_idx * fs / len(signal)
 
 # ---------------------------
-# CBC Backbone Tracing Loop
+# FPI Tools
 # ---------------------------
 
-# def run_backbone_trace(F_start, h, m, fs, omega_init, delta, alpha, beta, kp, kd, q_tol, e_tol, n_max):
-#     Ts = 1 / fs
-#     tspan = np.arange(0, 50, Ts)
+def bisection_point(q_omega, omega, q_counter):
+    # Skip bisection for first iteration to create a bounding region
+    if q_counter == 1:
+        omega[0] = omega[1]
+        omega[1] = omega[0] * 1.1
+    
+    # In case bounding region guess is wrong, iterate until valid region is found
+    elif q_omega[0] * q_omega[1] > 0 and q_omega[1] < 0:
+        omega[1] = omega[1]+1.1
+    
+    elif q_omega[0] * q_omega[2] > 0 and q_omega[0] > 0:
+        omega[1] = omega[1]+0.9
+    
+    # If function has root in left side of region, update bound so middle is the new right bound
+    elif q_omega[0] * q_omega[1] < 0:
+        omega[2] = omega[1]
+        omega[1] = (omega[0] + omega[2]) / 2
+    
+    # If function has root on right side of region, update bound so middle is the new left bound
+    else:
+        omega[0] = omega[1]
+        omega[1] = (omega[0] + omega[2]) / 2
+        
+    return omega
 
-#     freq_list = []
-#     amp_list = []
-#     omega = [omega_init, omega_init, omega_init * 3]
-#     X_n = np.zeros((m + 1, 2, n_max))
-#     X_star = np.zeros((m + 1, 2))
+def get_backbone_point(signal, fs):
+    A = get_amplitude(signal)
+    freq = estimate_dominant_freq(signal, fs)
+    return A, freq
 
-#     n_counter = 0
+def forcing_amp_recieved():
+    # Write a method here to measure the load cell forcing
+    return None
 
-#     while n_counter < n_max:
-#         F = F_start + n_counter * h
-#         q_omega = [np.inf, np.inf, np.inf]
-#         val_dif = np.inf
-#         e_u = np.inf
-#         e_counter = 1
-#         q_counter = 1
+def save_to_txt(filename, amp_list, freq_list):
+    if len(amp_list) != len(freq_list):
+        raise ValueError("amp_list and freq_list must be the same length.")
 
-#         while abs(val_dif) > q_tol and q_counter <= 150:
-#             while e_u > e_tol and e_counter <= 100:
-#                 if e_counter == 1:
-#                     X_star[1, 0] = 0
-#                     X_star[1, 1] = F
+    with open(filename, 'w') as f:
+        f.write("Amplitude\tFrequency\n")
+        for amp, freq in zip(amp_list, freq_list):
+            f.write(f"{amp:.17g}\t{freq:.17g}\n")
 
-#                 x_star_func = get_traj(X_star, omega[1])
-#                 x_dot_star_func = get_traj_derivative(X_star, omega[1])
-                
-#                 # Placeholder: You must implement this
-#                 t_res, y_res = simulate_system(tspan, x_star_func, x_dot_star_func, delta, alpha, beta, omega[1], F, kp, kd)
-
-#                 signal = y_res[:, 0]  # assume first column is x(t)
-#                 wl = estimate_wavelength(signal[int(10*fs):], fs)
-#                 wl_idx = int(round(wl['samples']))
-                
-#                 end_idx = np.where(np.abs(signal) <= 1e-3)[0][-1]
-#                 num_periods = int(35 / (wl_idx * Ts))
-#                 seg_start = end_idx - wl_idx * num_periods
-#                 seg = signal[seg_start:end_idx]
-
-#                 Four_coeffs = get_four_coeffs(seg, m, omega[1], fs)
-#                 e_u = np.linalg.norm(Four_coeffs[2:] - X_star[2:])
-#                 if e_u > e_tol:
-#                     X_star[2:] = Four_coeffs[2:]
-#                 e_counter += 1
-
-#             forcing = F * np.cos(omega[1] * tspan[seg_start:end_idx])
-#             q_omega[2] = compute_phase_difference(forcing, seg, fs, wl['seconds']) - np.pi / 2
-
-#             if q_counter > 2:
-#                 val_dif = abs(q_omega[0] - q_omega[2])
-
-#             if abs(val_dif) <= q_tol:
-#                 A = get_amplitude(seg)
-#                 freq = estimate_dominant_freq(seg, fs)
-#                 freq_list.append(freq)
-#                 amp_list.append(A)
-#                 X_n[:, :, n_counter] = Four_coeffs
-#                 if n_counter > 0:
-#                     X_star = X_n[:, :, n_counter] + h * (X_n[:, :, n_counter] - X_n[:, :, n_counter - 1])
-#                 else:
-#                     X_star = X_n[:, :, n_counter]
-#                 omega = [2 * np.pi * freq] * 3
-#                 break
-
-#             else:
-#                 q_omega = [q_omega[1], q_omega[2], q_omega[1] if q_counter == 1 else q_omega[2]]
-#                 if q_omega[0] * q_omega[1] < 0:
-#                     omega[2] = omega[1]
-#                     omega[1] = (omega[0] + omega[2]) / 2
-#                 else:
-#                     omega[0] = omega[1]
-#                     omega[1] = (omega[0] + omega[2]) / 2
-#                 e_u = np.inf
-#                 e_counter = 1
-
-#             q_counter += 1
-#         n_counter += 1
-
-#     return freq_list, amp_list, X_n
