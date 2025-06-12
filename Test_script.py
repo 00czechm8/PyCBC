@@ -3,6 +3,7 @@ import numpy as np
 import os
 import multiprocessing
 from daqhats import mcc152
+import time
 
 def spin_up(F_spin_up, omega_spin_up, pause_event, stop_event):
     # Pin Core
@@ -39,14 +40,15 @@ def main():
     X_n = np.zeros((m + 1, 2, n_max))
     X_star = np.zeros((m + 1, 2))
 
-
     n_counter = 0
 
-    cbc.start_hats()
-    spin_up_process = multiprocessing.Process(target=spin_up)
+    dac, adc = cbc.start_hats()
+    F_spin_up = multiprocessing.Value("d", F_start)
+    omega_spin_up = multiprocessing.Value("d", omega_init)
     pause_spin_up = multiprocessing.Event()
     stop_spin_up = multiprocessing.Event() # to Stop process call stop_spin_up.set() (breaks out of the while loop)
     pause_spin_up.set() # Pause process when pause_spin_up.clear() is called but runs when pause_spin_up.set()
+    spin_up_process = multiprocessing.Process(target=cbc.spin_up, args=(F_spin_up.value, omega_spin_up.value, pause_event, stop_event, 1))
     spin_up_process.start()
 
     while n_counter < n_max:
@@ -67,13 +69,14 @@ def main():
                 x_dot_star_func = cbc.get_traj_derivative(X_star, omega[1])
 
                 # RUN SYSTEM HERE
-                signal, F_act = cbc.run_system(F, omega[1], duration) 
-
-                signal = np.sin(2)  # assume first column is x(t)
+                pause_spin_up.clear()
+                signal, F_act = cbc.run_system(adc, dac, F, omega[1], x_star_func, x_dot_star_func, kp, kd, duration) 
+                pause_spin_up.set()
+                time.sleep(2)
                 
                 seg_signal, wl = cbc.segment_signal(signal, fs)
                 Four_coeffs = cbc.get_four_coeffs(seg_signal, m, omega[1], fs)
-                e_u = np.linalg.norm(Four_coeffs[2:] - X_star[2:])+np.linalg.norm(Four_coeffs[0] - X_star[0])
+                e_u = np.linalg.norm(Four_coeffs[2:] - X_star[2:]) + np.linalg.norm(Four_coeffs[0] - X_star[0])
                 if e_u > e_tol:
                     X_star[2:] = Four_coeffs[2:]
                     X_star[0] = Four_coeffs[0]
@@ -91,7 +94,8 @@ def main():
 
             q_counter += 1
         n_counter += 1
-
+    dac.a_out_write(0, 0)
+    dac.a_out_write(1, 0)
     cbc.save_to_txt(filename, amp_list, freq_list)
 
 if __name__ == '__main__':
