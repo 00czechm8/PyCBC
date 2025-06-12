@@ -5,6 +5,60 @@ from daqhats import mcc128, AnalogInputRange, AnalogInputMode, mcc152
 import os
 import time
 from collections import deque
+from numba import njit
+
+@njit(cache=True)
+def numba_get_four_coeffs(signal, m, omega, fs):
+    n = len(signal)
+    if n % 2 != 0:
+        signal = signal[:-1]
+        n -= 1
+    y = np.fft.fft(signal)
+    y = 2 * y[:n // 2] / n
+    f = np.arange(n // 2) * (fs / n) * 2 * np.pi
+    harm_f = omega * np.arange(1, m + 1)
+    # Numba doesn't support np.interp, so use a simple linear search
+    y_interp_real = np.zeros(m)
+    y_interp_imag = np.zeros(m)
+    for i in range(m):
+        idx = np.searchsorted(f, harm_f[i])
+        if idx == 0 or idx >= len(f):
+            y_interp_real[i] = 0.0
+            y_interp_imag[i] = 0.0
+        else:
+            x0, x1 = f[idx-1], f[idx]
+            y0r, y1r = np.real(y[idx-1]), np.real(y[idx])
+            y0i, y1i = np.imag(y[idx-1]), np.imag(y[idx])
+            frac = (harm_f[i] - x0) / (x1 - x0)
+            y_interp_real[i] = y0r + frac * (y1r - y0r)
+            y_interp_imag[i] = y0i + frac * (y1i - y0i)
+    A0 = np.real(y[0])
+    A_n = y_interp_real
+    B_n = -y_interp_imag
+    coeffs = np.zeros((m + 1, 2))
+    coeffs[0, 0] = A0
+    coeffs[1:, 0] = A_n
+    coeffs[1:, 1] = B_n
+    return coeffs
+
+@njit(cache=True)
+def numba_traj(t, Four_coeffs, omega):
+    wavenums = np.arange(Four_coeffs.shape[0])
+    coeffs = np.hstack((Four_coeffs[:, 0], Four_coeffs[:, 1]))
+    cos_terms = np.cos(np.outer(t, wavenums * omega))
+    sin_terms = np.sin(np.outer(t, wavenums * omega))
+    mat = np.hstack((cos_terms, sin_terms))
+    return mat @ coeffs
+
+@njit(cache=True)
+def numba_traj_derivative(t, Four_coeffs, omega):
+    wavenums = np.arange(Four_coeffs.shape[0])
+    coeffs = np.hstack((Four_coeffs[:, 0], Four_coeffs[:, 1]))
+    omega_wavenums = wavenums * omega
+    dcos = -np.sin(np.outer(t, omega_wavenums)) * omega_wavenums
+    dsin =  np.cos(np.outer(t, omega_wavenums)) * omega_wavenums
+    mat = np.hstack((dcos, dsin))
+    return mat @ coeffs
 
 class Backbone:
 
@@ -45,29 +99,6 @@ class Backbone:
     def resume_spin_up(self):
         self.pause_event.set()
 
-    def get_traj(self, Four_coeffs, omega):
-        wavenums = np.arange(Four_coeffs.shape[0])
-        def x_star(t):
-            cos_terms = np.cos(np.outer(t, wavenums * omega))
-            sin_terms = np.sin(np.outer(t, wavenums * omega))
-            mat = np.hstack([cos_terms, sin_terms])
-            coeffs = np.hstack([Four_coeffs[:, 0], Four_coeffs[:, 1]])
-            return mat @ coeffs
-        return x_star
-
-    def get_traj_derivative(self, Four_coeffs, omega):
-        wavenums = np.arange(Four_coeffs.shape[0])
-        def x_star_dot(t):
-            dcos = -np.sin(np.outer(t, wavenums * omega)) * (wavenums * omega)
-            dsin =  np.cos(np.outer(t, wavenums * omega)) * (wavenums * omega)
-            mat = np.hstack([dcos, dsin])
-            coeffs = np.hstack([Four_coeffs[:, 0], Four_coeffs[:, 1]])
-            return mat @ coeffs
-        return x_star_dot
-
-    def control_input(self, x, v, x_star_func, x_dot_star_func, t):
-        return self.kp * (x_star_func(t) - x) + self.kd * (x_dot_star_func(t) - v)
-
     def run_system(self, F, omega, x_star, x_dot_star, duration):
         doppV2vel_const = self.dopp2vel_constant
         shaker_constant = self.shaker_constant
@@ -82,91 +113,70 @@ class Backbone:
         load_cell = self.load_cell_channel
 
         t0 = time.time()
-        response = deque(maxlen=int(fs * duration))
-        time_vec = deque(maxlen=int(fs * duration))
-        F_act = deque(maxlen=int(fs * duration))
+        maxlen = int(fs * duration)
+        response = np.zeros(maxlen)
+        F_act = np.zeros(maxlen)
+        time_vec = np.zeros(maxlen)
         Ts = 1 / fs
-        t = time.time()
-        t_past = t
-    
 
         num_avg = 5
-        avg_samples = [adc.a_in_read(channel_adc) for _ in range(num_avg)]
-        dopp_voltage = sum(avg_samples) / num_avg
+        # Pre-allocate for averaging
+        avg_samples_vel = np.zeros(num_avg)
+        avg_samples_LC = np.zeros(num_avg)
+
+        # Initial velocity
+        for i in range(num_avg):
+            avg_samples_vel[i] = adc.a_in_read(channel_adc)
+        dopp_voltage = np.mean(avg_samples_vel)
         velocity = doppV2vel_const * dopp_voltage
 
-        while True:
+        idx = 0
+        t_past = t = time.time()
+
+        while idx < maxlen:
             now = time.time()
-            if now - t0 >= duration:
-                break
             t_past = t
             t = now
-            time.append(t)
+            time_vec[idx] = t
 
-            # Read velocity and load cell value
+            # Read velocity and load cell value (vectorized)
+            for i in range(num_avg):
+                avg_samples_vel[i] = adc.a_in_read(channel_adc)
+                avg_samples_LC[i] = adc.a_in_read(load_cell)
+            dopp_voltage = np.mean(avg_samples_vel)
+            force_voltage = np.mean(avg_samples_LC)
             old_velocity = velocity
-            avg_samples_vel = [adc.a_in_read(channel_adc) for _ in range(num_avg)]
-            avg_samples_LC = [adc.a_in_read(load_cell) for _ in range(num_avg)]
-            
-            # Average and unit conversion
-            dopp_voltage = sum(avg_samples_vel) / num_avg
-            force_voltage = sum(avg_samples_LC) / num_avg
             velocity = doppV2vel_const * dopp_voltage
             force = LC_constant * force_voltage
-            response.append(velocity)
-            F_act.append(force)
+            response[idx] = velocity
+            F_act[idx] = force
 
             # Finite Diff. for PD controller
-            accel = (velocity - old_velocity) / (t - t_past)
+            accel = (velocity - old_velocity) / (t - t_past) if (t - t_past) > 0 else 0.0
 
             # Send control update
             elapsed = t - t0
             u = shaker_constant * F * np.cos(2 * np.pi * omega * elapsed) + kp * (x_star(elapsed) - velocity) + kd * (x_dot_star(elapsed) - accel)
             dac.a_out_write(channel_dac, u)
+            idx += 1
             time.sleep(Ts)
 
-        return np.array(response), F
+        return response, F
 
-    def segment_signal(self, signal, fs):
-        last_n_samples = int(35 * fs)
-        if len(signal) < last_n_samples:
-            raise ValueError("Signal shorter than 35 seconds of data")
+    def get_traj(self, Four_coeffs, omega):
+        def x_star(t):
+            t = np.atleast_1d(t)
+            return numba_traj(t, Four_coeffs, omega)
+        return x_star
 
-        recent_signal = signal[-last_n_samples:]
-        wl = self.estimate_wavelength(recent_signal, fs)
-        wl_idx = int(round(wl['samples']))
-        total_samples = len(recent_signal)
-        num_full_periods = total_samples // wl_idx
-        max_period_samples = num_full_periods * wl_idx
-        seg_candidate = recent_signal[-max_period_samples:]
-
-        start_idx = next((i for i in range(len(seg_candidate)) if abs(seg_candidate[i]) < 0.01), 0)
-        end_idx = next((i for i in reversed(range(len(seg_candidate))) if abs(seg_candidate[i]) < 0.01), len(seg_candidate))
-
-        if start_idx >= end_idx:
-            raise ValueError("Unable to find proper zero crossings in segment")
-
-        seg = seg_candidate[start_idx:end_idx]
-        return seg, wl
+    def get_traj_derivative(self, Four_coeffs, omega):
+        def x_star_dot(t):
+            t = np.atleast_1d(t)
+            return numba_traj_derivative(t, Four_coeffs, omega)
+        return x_star_dot
 
     def get_four_coeffs(self, signal, m, omega, fs):
-        n = len(signal)
-        if n % 2 != 0:
-            signal = signal[:-1]
-            n -= 1
-        y = fft(signal)
-        y = 2 * y[:n // 2] / n
-        f = np.arange(n // 2) * (fs / n) * 2 * np.pi
-        harm_f = omega * np.arange(1, m + 1)
-        y_interp = np.interp(harm_f, f, y)
-        A0 = np.real(y[0])
-        A_n = np.real(y_interp)
-        B_n = -np.imag(y_interp)
-        coeffs = np.zeros((m + 1, 2))
-        coeffs[0, 0] = A0
-        coeffs[1:, 0] = A_n
-        coeffs[1:, 1] = B_n
-        return coeffs
+        return numba_get_four_coeffs(signal, m, omega, fs)
 
     def get_amplitude(self, signal):
         return 0.5 * (np.max(signal) - np.min(signal))
@@ -175,8 +185,7 @@ class Backbone:
         peaks, _ = find_peaks(signal)
         if len(peaks) < 2:
             raise ValueError("Not enough peaks to estimate wavelength.")
-        diffs = np.diff(peaks)
-        avg_samples = np.mean(diffs)
+        avg_samples = np.mean(np.diff(peaks))
         return {"samples": avg_samples, "seconds": avg_samples / fs}
 
     def compute_phase_difference(self, sig1, sig2):
@@ -193,7 +202,8 @@ class Backbone:
 
     def estimate_dominant_freq(self, signal):
         y = np.abs(fft(signal))
-        peak_idx = np.argmax(y[:len(y)//2])
+        half = len(y) // 2
+        peak_idx = np.argmax(y[:half])
         return peak_idx * self.fs / len(signal)
 
     def bisection_point(self, q_omega, omega, q_counter):
