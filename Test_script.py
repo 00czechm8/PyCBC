@@ -9,22 +9,23 @@ import time
 def main():
 
     # Start the backbone object
-    cbc = CBC_lib.Backbone
+    cbc = CBC_lib.Backbone()
 
     # Start connection with hats channels
-    dac, adc = cbc.start_hats()
+    cbc.start_hats()
 
-    
+    # Create values in class object
     cbc.filename = "Simple_beam_backbone.txt"
     cbc.kp = 0.02
     cbc.kd = 0.05
-    cbc.dac = dac
-    cbc.adc
-    cbc.pause_event
-    cbc.stop_event
+    cbc.pause_event = multiprocessing.Event()
+    cbc.pause_event.set() # Pause process when pause_spin_up.clear() is called but runs when pause_spin_up.set()
+    cbc.stop_event = stop_spin_up = multiprocessing.Event() # to Stop process call stop_spin_up.set() (breaks out of the while loop)
     cbc.output_channel
     cbc.read_channel
     cbc.fs
+    cbc.F_spin_up
+    cbc.omega_spin_up
 
     os.sched_setaffinity(0, {0})
     # Txt file name for saved data at the end
@@ -55,10 +56,7 @@ def main():
     
     F_spin_up = multiprocessing.Value("d", F_start)
     omega_spin_up = multiprocessing.Value("d", omega_init)
-    pause_spin_up = multiprocessing.Event()
-    stop_spin_up = multiprocessing.Event() # to Stop process call stop_spin_up.set() (breaks out of the while loop)
-    pause_spin_up.set() # Pause process when pause_spin_up.clear() is called but runs when pause_spin_up.set()
-    spin_up_process = multiprocessing.Process(target=cbc.spin_up, args=(F_spin_up.value, omega_spin_up.value, pause_event, stop_event, 1))
+    spin_up_process = multiprocessing.Process(target=cbc.spin_up, args=(F_spin_up.value, omega_spin_up.value, cbc.pause_event, cbc.stop_event, cbc.dac, cbc.output_channel))
     spin_up_process.start()
 
     while n_counter < n_max:
@@ -79,9 +77,9 @@ def main():
                 x_dot_star_func = cbc.get_traj_derivative(X_star, omega[1])
 
                 # RUN SYSTEM HERE
-                pause_spin_up.clear()
-                signal, F_act = cbc.run_system(adc, dac, F, omega[1], x_star_func, x_dot_star_func, kp, kd, duration) 
-                pause_spin_up.set()
+                cbc.pause_spin_up()
+                signal, F_act = cbc.run_system(F, omega[1], x_star_func, x_dot_star_func, duration) 
+                cbc.resume_spin_up()
                 time.sleep(2)
                 
                 seg_signal, wl = cbc.segment_signal(signal, fs)
@@ -104,8 +102,8 @@ def main():
 
             q_counter += 1
         n_counter += 1
-    dac.a_out_write(0, 0)
-    dac.a_out_write(1, 0)
+    cbc.dac.a_out_write(0, 0)
+    cbc.dac.a_out_write(1, 0)
     cbc.save_to_txt(filename, amp_list, freq_list)
 
 if __name__ == '__main__':
