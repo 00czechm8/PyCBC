@@ -6,7 +6,21 @@ import os
 import time
 from collections import deque
 
-class Backbone
+class Backbone:
+
+    def __init__(self):
+        self.filename
+        self.load_cell_constant
+        self.shaker_constant
+        self.kp
+        self.kd
+        self.dac
+        self.adc
+        self.pause_event
+        self.stop_event
+        self.output_channel
+        self.read_channel
+        self.fs
     # ---------------------------
     # Controller Logic
     # ---------------------------

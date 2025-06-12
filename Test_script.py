@@ -1,21 +1,31 @@
-import CBC_lib as cbc
+import CBC_lib
 import numpy as np
 import os
 import multiprocessing
 from daqhats import mcc152
 import time
 
-def spin_up(F_spin_up, omega_spin_up, pause_event, stop_event):
-    # Pin Core
-    os.sched_setaffinity(0, {1})
-    
-    # While process is active
-    while not stop_event.is_set():
-        # if pause event is set then the 
-        pause_event.wait()
-        spin_up(F_spin_up.value, omega_spin_up)
 
 def main():
+
+    # Start the backbone object
+    cbc = CBC_lib.Backbone
+
+    # Start connection with hats channels
+    dac, adc = cbc.start_hats()
+
+    
+    cbc.filename = "Simple_beam_backbone.txt"
+    cbc.kp = 0.02
+    cbc.kd = 0.05
+    cbc.dac = dac
+    cbc.adc
+    cbc.pause_event
+    cbc.stop_event
+    cbc.output_channel
+    cbc.read_channel
+    cbc.fs
+
     os.sched_setaffinity(0, {0})
     # Txt file name for saved data at the end
     filename = "Simple_beam_backbone.txt"
@@ -42,7 +52,7 @@ def main():
 
     n_counter = 0
 
-    dac, adc = cbc.start_hats()
+    
     F_spin_up = multiprocessing.Value("d", F_start)
     omega_spin_up = multiprocessing.Value("d", omega_init)
     pause_spin_up = multiprocessing.Event()
