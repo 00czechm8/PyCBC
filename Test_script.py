@@ -47,6 +47,7 @@ def main():
 
     freq_list = []
     amp_list = []
+    forcing_list = []
     omega = [omega_init, omega_init, omega_init * 3]
     X_n = np.zeros((m + 1, 2, n_max))
     X_star = np.zeros((m + 1, 2))
@@ -78,25 +79,26 @@ def main():
 
                 # RUN SYSTEM HERE
                 cbc.pause_spin_up()
-                signal, F_act = cbc.run_system(F, omega[1], x_star_func, x_dot_star_func, duration) 
+                signal, F_act, time = cbc.run_system(F, omega[1], x_star_func, x_dot_star_func, duration) 
                 cbc.resume_spin_up()
                 time.sleep(2)
                 
-                seg_signal, wl = cbc.segment_signal(signal, fs)
+                seg_signal, F_seg, wl = cbc.segment_signal(signal, F_act, fs)
                 Four_coeffs = cbc.get_four_coeffs(seg_signal, m, omega[1], fs)
                 e_u = np.linalg.norm(Four_coeffs[2:] - X_star[2:]) + np.linalg.norm(Four_coeffs[0] - X_star[0])
                 if e_u > e_tol:
                     X_star[2:] = Four_coeffs[2:]
                     X_star[0] = Four_coeffs[0]
                 e_counter += 1
-
-            forcing = F_act * np.cos(omega[1] * tspan[seg_start:end_idx])
-            q_omega[1] = cbc.compute_phase_difference(forcing, seg_signal, fs, wl['seconds'])
+                
+            # forcing = F_act * np.cos(omega[1] * tspan[seg_start:end_idx])
+            q_omega[1] = cbc.compute_phase_difference(F_seg, seg_signal, fs, wl['seconds'])
 
             if abs(q_omega[1]) <= q_tol:
                 A, freq = cbc.get_backbone_point(seg_signal, fs)
                 amp_list.append(A)
                 freq_list.append(freq)
+                forcing_list.append(cbc.get_amplitude(F_seg))
 
             omega = cbc.bisection_point(q_omega, omega, q_counter)
 

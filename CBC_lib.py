@@ -161,7 +161,37 @@ class Backbone:
             idx += 1
             time.sleep(Ts)
 
-        return response, F
+        return response, F_act, time
+
+    def segment_signal(self, signal, forcing, fs):
+        """
+        Segments the signal and forcing arrays using the same indices.
+        Returns the segmented signal, segmented forcing, and estimated wavelength.
+        """
+        last_n_samples = int(35 * fs)
+        if len(signal) < last_n_samples or len(forcing) < last_n_samples:
+            raise ValueError("Signal or forcing shorter than 35 seconds of data")
+
+        recent_signal = signal[-last_n_samples:]
+        recent_forcing = forcing[-last_n_samples:]
+        wl = self.estimate_wavelength(recent_signal, fs)
+        wl_idx = int(round(wl['samples']))
+        total_samples = len(recent_signal)
+        num_full_periods = total_samples // wl_idx
+        max_period_samples = num_full_periods * wl_idx
+        seg_candidate_signal = recent_signal[-max_period_samples:]
+        seg_candidate_forcing = recent_forcing[-max_period_samples:]
+
+        # Find segment indices based on signal
+        start_idx = next((i for i in range(len(seg_candidate_signal)) if abs(seg_candidate_signal[i]) < 0.01), 0)
+        end_idx = next((i for i in reversed(range(len(seg_candidate_signal))) if abs(seg_candidate_signal[i]) < 0.01), len(seg_candidate_signal))
+
+        if start_idx >= end_idx:
+            raise ValueError("Unable to find proper zero crossings in segment")
+
+        seg_signal = seg_candidate_signal[start_idx:end_idx]
+        seg_forcing = seg_candidate_forcing[start_idx:end_idx]
+        return seg_signal, seg_forcing, wl
 
     def get_traj(self, Four_coeffs, omega):
         def x_star(t):
