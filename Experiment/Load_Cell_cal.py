@@ -11,15 +11,17 @@ LC = CBC_lib.Backbone()
 LC.start_hats()
 
 # Setup internal attributes
-LC.pause_event = multiprocessing.Event()
-LC.stop_event = multiprocessing.Event()
-LC.F_spin_up = multiprocessing.Value("d", 0.05)
-LC.omega_spin_up = multiprocessing.Value("d", 100)
+# LC.pause_event = multiprocessing.Event()
+# LC.stop_event = multiprocessing.Event()
+# LC.F_spin_up = multiprocessing.Value("d", 0.05)
+# LC.omega_spin_up = multiprocessing.Value("d", 100)
 LC.fs = 1e3
+F_test = 0.05
+omega_test = 100
 
-LC.pause_event.set()
-spin_up_process = multiprocessing.Process(target=LC.spin_up, args=(LC.F_spin_up.value, LC.omega_spin_up.value, LC.pause_event, LC.stop_event, LC.dac, LC.output_channel))
-spin_up_process.start()
+# LC.pause_event.set()
+# spin_up_process = multiprocessing.Process(target=LC.spin_up, args=(LC.F_spin_up.value, LC.omega_spin_up.value, LC.pause_event, LC.stop_event, LC.dac, LC.output_channel))
+# spin_up_process.start()
 
 num_samples = 5
 time_length = int(5*LC.fs)
@@ -30,8 +32,12 @@ load = np.zeros(time_length)
 forcing = np.zeros(time_length)
 
 start_time = time.time()
+target_time = start_time
 for idx in range(time_length):
-    print("Time:", idx/LC.fs)
+
+    output = F_test * np.cos(2*np.pi*omega_test.value * target_time)+2.5
+    LC.dac.a_out_write(0, output)
+    print("Time:", target_time, "Output:", output)
     for i in range(num_samples):
         sampled_load[i] = LC.adc.a_in_read(LC.load_cell_channel)
         forcing_signal[i] = LC.adc.a_in_read(LC.read_channel)
@@ -41,9 +47,9 @@ for idx in range(time_length):
     time.sleep(max(0, target_time - time.time()))
 
 
-LC.stop_event.set()
-if spin_up_process.is_alive():
-    spin_up_process.terminate()
+# LC.stop_event.set()
+# if spin_up_process.is_alive():
+#     spin_up_process.terminate()
 
 plt.plot(np.linspace(0, len(load)-1), load)
 plt.plot(np.linspace(0, len(forcing)-1), forcing)
