@@ -24,7 +24,7 @@ omega_test = 10
 # spin_up_process.start()
 
 num_samples = 5
-time_length = int(5*LC.fs)
+time_length = int(num_samples*LC.fs)
 sampled_load = np.zeros(num_samples)
 forcing_signal = np.zeros(num_samples)
 
@@ -39,6 +39,7 @@ for idx in range(time_length):
     output = F_test * np.cos(2*np.pi*omega_test * target_time)+2.5
     LC.dac.a_out_write(0, output)
     time_vec[idx] = target_time
+    print("Time:", idx/LC.fs, "Output:", output)
     print("Time:", idx/LC.fs, "Output:", output)
     for i in range(num_samples):
         sampled_load[i] = LC.adc.a_in_read(LC.load_cell_channel)
