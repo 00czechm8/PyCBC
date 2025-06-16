@@ -81,8 +81,8 @@ class Backbone:
         self.dopp2vel_constant = 1.0
 
     def start_hats(self):
-        self.dac = mcc152(self.output_channel)
-        self.adc = mcc128(self.read_channel)
+        self.dac = mcc152(1)
+        self.adc = mcc128(0)
         self.dac.a_out_write(self.reference_channel, self.ref_voltage)
 
     def spin_up(self, F_spin_up, omega_spin_up, pause_event, stop_event, address=1, dac_channel=0):
