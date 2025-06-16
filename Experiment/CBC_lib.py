@@ -96,7 +96,7 @@ class Backbone:
             t = current_time - start_time
 
             if pause_event.is_set():
-                output = F_spin_up.value * np.cos(2*np.pi*omega_spin_up.value * t)
+                output = F_spin_up.value * np.cos(2*np.pi*omega_spin_up.value * t)+2.5
             else:
                 output = 0.0
 
