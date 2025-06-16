@@ -39,8 +39,8 @@ for idx in range(time_length):
 
 LC.stop_event.set()
 
-plt.plot(np.linspace(0, 20, 20*LC.fs), load)
-plt.plot(np.linspace(0, 20, 20*LC.fs), forcing)
+plt.plot(np.linspace(0, len(load)-1), load)
+plt.plot(np.linspace(0, len(forcing)-1), forcing)
 plt.show()
 
 
