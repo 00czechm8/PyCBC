@@ -21,11 +21,10 @@ def main():
     cbc.pause_event = multiprocessing.Event()
     cbc.pause_event.set() # Pause process when pause_spin_up.clear() is called but runs when pause_spin_up.set()
     cbc.stop_event = stop_spin_up = multiprocessing.Event() # to Stop process call stop_spin_up.set() (breaks out of the while loop)
-    cbc.output_channel
-    cbc.read_channel
-    cbc.fs
-    cbc.F_spin_up
-    cbc.omega_spin_up
+    cbc.output_channel = 0 
+    cbc.read_channel = 0
+    cbc.fs = 1e4
+ 
 
     os.sched_setaffinity(0, {0})
     # Txt file name for saved data at the end
@@ -55,8 +54,8 @@ def main():
     n_counter = 0
 
     
-    F_spin_up = multiprocessing.Value("d", F_start)
-    omega_spin_up = multiprocessing.Value("d", omega_init)
+    cbc.F_spin_up = multiprocessing.Value("d", F_start)
+    cbc.omega_spin_up = multiprocessing.Value("d", omega_init)
     spin_up_process = multiprocessing.Process(target=cbc.spin_up, args=(F_spin_up.value, omega_spin_up.value, cbc.pause_event, cbc.stop_event, cbc.dac, cbc.output_channel))
     spin_up_process.start()
 

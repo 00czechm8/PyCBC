@@ -90,8 +90,8 @@ class Backbone:
         dac = mcc152(address)
         while not stop_event.is_set():
             pause_event.wait()
-            t = time.time()
-            dac.a_out_write(dac_channel, F_spin_up.value * np.cos(omega_spin_up.value * t))
+            dac.a_out_write(dac_channel, F_spin_up.value * np.cos(omega_spin_up.value * time.time()))
+            time.sleep(1/self.fs)
     
     def pause_spin_up(self):
         self.pause_event.clear()
