@@ -86,7 +86,7 @@ class Backbone:
         self.dac.a_out_write(self.reference_channel, self.ref_voltage)
 
     def spin_up(self, F_spin_up, omega_spin_up, pause_event, stop_event, dac, dac_channel=0):
-        os.sched_setaffinity(0, {1})
+        # os.sched_setaffinity(0, {1})
         Ts = 1 / self.fs
         start_time = time.time()
         count = 0
@@ -172,7 +172,7 @@ class Backbone:
 
             # Send control update
             elapsed = t - t0
-            u = shaker_constant * F * np.cos(2 * np.pi * omega * elapsed) + kp * (x_star(elapsed) - velocity) + kd * (x_dot_star(elapsed) - accel)
+            u = shaker_constant * F * np.cos(2 * np.pi * omega * elapsed) + kp * (x_star(elapsed) - velocity) + kd * (x_dot_star(elapsed) - accel)+2.5
             dac.a_out_write(channel_dac, u)
             idx += 1
             time.sleep(Ts)
