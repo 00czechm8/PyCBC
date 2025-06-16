@@ -30,13 +30,15 @@ forcing_signal = np.zeros(num_samples)
 
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
+time_vec = np.zeros(time_length)
 
 start_time = time.time()
 target_time = start_time
 for idx in range(time_length):
 
-    output = F_test * np.cos(2*np.pi*omega_test.value * target_time)+2.5
+    output = F_test * np.cos(2*np.pi*omega_test * target_time)+2.5
     LC.dac.a_out_write(0, output)
+    time_vec[idx] = target_time
     print("Time:", target_time, "Output:", output)
     for i in range(num_samples):
         sampled_load[i] = LC.adc.a_in_read(LC.load_cell_channel)
@@ -51,8 +53,8 @@ for idx in range(time_length):
 # if spin_up_process.is_alive():
 #     spin_up_process.terminate()
 
-plt.plot(np.linspace(0, len(load)-1), load)
-plt.plot(np.linspace(0, len(forcing)-1), forcing)
+plt.plot(time_vec, load)
+plt.plot(time_vec, forcing)
 plt.show()
 
 
