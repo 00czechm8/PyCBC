@@ -87,10 +87,27 @@ class Backbone:
 
     def spin_up(self, F_spin_up, omega_spin_up, pause_event, stop_event, dac, dac_channel=0):
         os.sched_setaffinity(0, {1})
+        Ts = 1 / self.fs
+        start_time = time.time()
+        count = 0
+
         while not stop_event.is_set():
-            pause_event.wait()
-            dac.a_out_write(dac_channel, F_spin_up.value * np.cos(omega_spin_up.value * time.time()))
-            time.sleep(1/self.fs)
+            current_time = time.time()
+            t = current_time - start_time
+
+            if pause_event.is_set():
+                output = F_spin_up.value * np.cos(2*np.pi*omega_spin_up.value * t)
+            else:
+                output = 0.0
+
+            dac.a_out_write(dac_channel, output)
+
+            count += 1
+            next_time = start_time + count * Ts
+            sleep_duration = max(0, next_time - time.time())
+            time.sleep(sleep_duration)
+
+
     
     def pause_spin_up(self):
         self.pause_event.clear()

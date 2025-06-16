@@ -28,6 +28,7 @@ forcing_signal = np.zeros(num_samples)
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
 
+start_time = time.time()
 for idx in range(time_length):
     print("Time:", idx/LC.fs)
     for i in range(num_samples):
@@ -35,9 +36,13 @@ for idx in range(time_length):
         forcing_signal[i] = LC.adc.a_in_read(LC.read_channel)
     load[idx] = np.mean(sampled_load)
     forcing[idx] = np.mean(forcing_signal)
-    time.sleep(1/LC.fs)
+    target_time = start_time + (idx + 1) / LC.fs
+    time.sleep(max(0, target_time - time.time()))
+
 
 LC.stop_event.set()
+if spin_up_process.is_alive():
+    spin_up_process.terminate()
 
 plt.plot(np.linspace(0, len(load)-1), load)
 plt.plot(np.linspace(0, len(forcing)-1), forcing)
