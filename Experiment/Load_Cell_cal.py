@@ -21,7 +21,7 @@ spin_up_process = multiprocessing.Process(target=LC.spin_up, args=(LC.F_spin_up.
 spin_up_process.start()
 
 num_samples = 5
-time_length = 20*LC.fs
+time_length = int(20*LC.fs)
 sampled_load = np.zeros(num_samples)
 forcing_signal = np.zeros(num_samples)
 

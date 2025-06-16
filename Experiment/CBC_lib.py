@@ -85,9 +85,8 @@ class Backbone:
         self.adc = mcc128(0)
         self.dac.a_out_write(self.reference_channel, self.ref_voltage)
 
-    def spin_up(self, F_spin_up, omega_spin_up, pause_event, stop_event, address=1, dac_channel=0):
+    def spin_up(self, F_spin_up, omega_spin_up, pause_event, stop_event, dac, dac_channel=0):
         os.sched_setaffinity(0, {1})
-        dac = mcc152(address)
         while not stop_event.is_set():
             pause_event.wait()
             dac.a_out_write(dac_channel, F_spin_up.value * np.cos(omega_spin_up.value * time.time()))
