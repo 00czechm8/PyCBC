@@ -6,13 +6,13 @@ import time
 LC = CBC_lib.Backbone()
 LC.start_hats()
 
-LC.fs = 10_000  # 10 kHz
+LC.fs = 1_000  # 1 kHz
 F_test = 1
 omega_test = 100
 dt = 1.0 / LC.fs
 
 # Preallocate
-time_length = int(1 * LC.fs)
+time_length = int(5 * LC.fs)
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
 time_vec = np.zeros(time_length)
