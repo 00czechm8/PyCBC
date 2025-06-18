@@ -15,8 +15,8 @@ LC.start_hats()
 # LC.stop_event = multiprocessing.Event()
 # LC.F_spin_up = multiprocessing.Value("d", 0.05)
 # LC.omega_spin_up = multiprocessing.Value("d", 100)
-LC.fs = 1e4
-F_test = 1.25
+LC.fs = 1e3
+F_test = 1
 omega_test = 100
 
 # LC.pause_event.set()
@@ -39,7 +39,6 @@ for idx in range(time_length):
     output = F_test * np.cos(2*np.pi*omega_test * (target_time-start_time))+2.5
     LC.dac.a_out_write(0, output)
     time_vec[idx] = target_time/LC.fs
-    print("Time:", idx/LC.fs, "Output:", output)
 
     for i in range(num_samples):
         sampled_load[i] = (1/11.21)*1e3*LC.adc.a_in_read(LC.load_cell_channel)
@@ -47,7 +46,10 @@ for idx in range(time_length):
     load[idx] = np.mean(sampled_load)
     forcing[idx] = np.mean(forcing_signal)
     target_time = start_time + (idx + 1) / LC.fs
-    time.sleep(max(0, target_time - time.time()))
+
+    now = time.time()
+    print("Time:", now)
+    time.sleep(max(0, target_time - now))
 
 # Load Calibration
 forcing_amp = LC.get_amplitude(forcing)
