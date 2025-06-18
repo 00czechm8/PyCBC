@@ -66,7 +66,7 @@ print("Latency:", (phase_diff/(2*np.pi))/LC.fs)
 #     spin_up_process.terminate()
 
 plt.plot(time_vec, load)
-plt.plot(time_vec, forcing)
+# plt.plot(time_vec, forcing)
 plt.show()
 
 
