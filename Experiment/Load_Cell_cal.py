@@ -16,7 +16,7 @@ LC.start_hats()
 # LC.F_spin_up = multiprocessing.Value("d", 0.05)
 # LC.omega_spin_up = multiprocessing.Value("d", 100)
 LC.fs = 1e3
-F_test = 0.1
+F_test = 0.05
 omega_test = 10
 
 # LC.pause_event.set()
@@ -36,7 +36,7 @@ start_time = time.time()
 target_time = start_time
 for idx in range(time_length):
 
-    output = F_test * np.cos(2*np.pi*omega_test * target_time)+2.5
+    output = F_test * np.cos(2*np.pi*omega_test * (target_time-start_time))+2.5
     LC.dac.a_out_write(0, output)
     time_vec[idx] = target_time
     print("Time:", idx/LC.fs, "Output:", output)
@@ -49,6 +49,16 @@ for idx in range(time_length):
     target_time = start_time + (idx + 1) / LC.fs
     time.sleep(max(0, target_time - time.time()))
 
+# Load Calibration
+forcing_amp = LC.get_amplitude(forcing)
+load_amp = LC.get_amplitude(load)
+
+forcingV2load_amp = load_amp/forcing_amp
+print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load_amp))
+
+# Latency
+phase_diff = LC.compute_phase_difference(forcing, load)
+print("Latency:" (phase_diff/(2*np.pi))/(1/LC.fs))
 
 # LC.stop_event.set()
 # if spin_up_process.is_alive():
