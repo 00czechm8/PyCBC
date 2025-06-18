@@ -56,6 +56,7 @@ load_amp = LC.get_amplitude(load)
 forcingV2load_amp = load_amp/forcing_amp
 print("Load Amp.:", load_amp, "Forcing Amp.:", forcing_amp)
 print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load))
+print("Max Load:", np.max(load), "Min. Load:", np.min(load))
 
 # Latency
 phase_diff = LC.compute_phase_difference(forcing, load)
