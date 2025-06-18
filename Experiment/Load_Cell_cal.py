@@ -38,7 +38,7 @@ for idx in range(time_length):
 
     output = F_test * np.cos(2*np.pi*omega_test * (target_time-start_time))+2.5
     LC.dac.a_out_write(0, output)
-    time_vec[idx] = target_time/LC.fs
+    time_vec[idx] = now-start_time
 
     for i in range(num_samples):
         sampled_load[i] = (1/11.21)*1e3*LC.adc.a_in_read(LC.load_cell_channel)
