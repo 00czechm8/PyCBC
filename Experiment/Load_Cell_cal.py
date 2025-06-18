@@ -39,23 +39,21 @@ start_time = time.perf_counter()
 target_time = start_time
 print(start_time)
 for idx in range(time_length):
-    # Generate cosine signal using complex multiply
+    # Cosine update
     cos_complex *= rotator
     signal = F_test * cos_complex.real + 2.5
     LC.dac.a_out_write(0, signal)
 
-    # Sampling
-    for j in range(num_avg):
-        load_buf[j] = (1/11.21)*1e3*LC.adc.a_in_read(LC.load_cell_channel)
-        force_buf[j] = LC.adc.a_in_read(LC.read_channel)
-    load[idx] = np.sum(load_buf) / num_avg
-    forcing[idx] = np.sum(force_buf) / num_avg
-
+    # One ADC read per channel
+    load[idx] = (1 / 11.21) * 1e3 * LC.adc.a_in_read(LC.load_cell_channel)
+    forcing[idx] = LC.adc.a_in_read(LC.read_channel)
     time_vec[idx] = time.perf_counter() - start_time
+
+    # Precise busy-wait timing
     target_time += dt
-    sleep_time = target_time - time.perf_counter()
-    if sleep_time > 0:
-        time.sleep(sleep_time)
+    while time.perf_counter() < target_time:
+        pass
+
 end_time = time.perf_counter()
 
 print("Total Time:", end_time-start_time)
