@@ -224,11 +224,15 @@ class Backbone:
     def get_four_coeffs(self, signal, m, omega, fs):
         return numba_get_four_coeffs(signal, m, omega, fs)
 
+    # def get_amplitude(self, signal):
+    #     y = np.abs(np.fft.fft(signal))
+    #     half = len(y) // 2
+    #     peak_amp = np.max(y[:half]) * 2 / len(signal)
+    #     return peak_amp
     def get_amplitude(self, signal):
-        y = np.abs(np.fft.fft(signal))
-        half = len(y) // 2
-        peak_amp = np.max(y[:half]) * 2 / len(signal)
-        return peak_amp
+        rms = np.sqrt(np.mean(signal**2))
+        return rms * np.sqrt(2)
+
 
 
     def estimate_wavelength(self, signal, fs):
