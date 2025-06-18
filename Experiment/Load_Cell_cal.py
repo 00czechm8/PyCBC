@@ -12,7 +12,7 @@ omega_test = 100
 dt = 1.0 / LC.fs
 
 # Preallocate
-time_length = int(5 * LC.fs)
+time_length = int(1 * LC.fs)
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
 time_vec = np.zeros(time_length)
