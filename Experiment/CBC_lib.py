@@ -224,16 +224,11 @@ class Backbone:
     def get_four_coeffs(self, signal, m, omega, fs):
         return numba_get_four_coeffs(signal, m, omega, fs)
 
-    # def get_amplitude(self, signal):
-    #     y = np.abs(np.fft.fft(signal))
-    #     half = len(y) // 2
-    #     peak_amp = np.max(y[:half]) * 2 / len(signal)
-    #     return peak_amp
     def get_amplitude(self, signal):
-        rms = np.sqrt(np.mean(signal**2))
-        return rms * np.sqrt(2)
-
-
+        y = np.abs(np.fft.fft(signal))
+        half = len(y) // 2
+        peak_amp = np.max(y[:half]) * 2 / len(signal)
+        return peak_amp
 
     def estimate_wavelength(self, signal, fs):
         peaks, _ = find_peaks(signal)
@@ -288,3 +283,24 @@ class Backbone:
             f.write("Amplitude\tFrequency\n")
             for amp, freq in zip(amp_list, freq_list):
                 f.write(f"{amp:.17g}\t{freq:.17g}\n")
+
+    def save_array(self, array, filename, binary=False):
+        """
+        Saves a numpy array to disk.
+
+        Parameters:
+        - array: np.ndarray — the array to save
+        - filename: str — path to save the array
+        - binary: bool — if True, saves as .npy binary; else saves as plain .txt
+        """
+        if not isinstance(array, np.ndarray):
+            raise TypeError("Input must be a numpy array.")
+        
+        if binary:
+            if not filename.endswith('.npy'):
+                filename += '.npy'
+            np.save(filename, array)
+        else:
+            if not filename.endswith('.txt'):
+                filename += '.txt'
+            np.savetxt(filename, array, fmt='%.18e')

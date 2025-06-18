@@ -38,7 +38,7 @@ for idx in range(time_length):
 
     output = F_test * np.cos(2*np.pi*omega_test * (target_time-start_time))+2.5
     LC.dac.a_out_write(0, output)
-    time_vec[idx] = target_time
+    time_vec[idx] = target_time/LC.fs
     print("Time:", idx/LC.fs, "Output:", output)
 
     for i in range(num_samples):
@@ -69,4 +69,5 @@ plt.plot(time_vec, load)
 # plt.plot(time_vec, forcing)
 plt.show()
 
+LC.save_array(load, "Load_0p1.txt")
 
