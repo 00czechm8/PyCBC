@@ -37,7 +37,7 @@ rotator = complex(cos_omega_dt, sin_omega_dt)
 
 start_time = time.perf_counter()
 target_time = start_time
-
+print(start_time)
 for idx in range(time_length):
     # Generate cosine signal using complex multiply
     cos_complex *= rotator
@@ -56,7 +56,9 @@ for idx in range(time_length):
     sleep_time = target_time - time.perf_counter()
     if sleep_time > 0:
         time.sleep(sleep_time)
+end_time = time.perf_counter()
 
+print("Total Time:", end_time-start_time)
 # ---- Post-processing ---- #
 forcing_amp = LC.get_amplitude(forcing)
 load_amp = LC.get_amplitude(load)
