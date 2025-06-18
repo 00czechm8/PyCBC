@@ -54,11 +54,12 @@ forcing_amp = LC.get_amplitude(forcing)
 load_amp = LC.get_amplitude(load)
 
 forcingV2load_amp = load_amp/forcing_amp
-print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load_amp))
+print("Load Amp.:", load_amp, "Forcing Amp.:", forcing_amp)
+print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load))
 
 # Latency
 phase_diff = LC.compute_phase_difference(forcing, load)
-print("Latency:" (phase_diff/(2*np.pi))/(1/LC.fs))
+print("Latency:", (phase_diff/(2*np.pi))/LC.fs)
 
 # LC.stop_event.set()
 # if spin_up_process.is_alive():
