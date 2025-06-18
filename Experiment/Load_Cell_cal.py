@@ -15,9 +15,9 @@ LC.start_hats()
 # LC.stop_event = multiprocessing.Event()
 # LC.F_spin_up = multiprocessing.Value("d", 0.05)
 # LC.omega_spin_up = multiprocessing.Value("d", 100)
-LC.fs = 1e3
-F_test = 0.05
-omega_test = 10
+LC.fs = 1e4
+F_test = 1.25
+omega_test = 100
 
 # LC.pause_event.set()
 # spin_up_process = multiprocessing.Process(target=LC.spin_up, args=(LC.F_spin_up.value, LC.omega_spin_up.value, LC.pause_event, LC.stop_event, LC.dac, LC.output_channel))
