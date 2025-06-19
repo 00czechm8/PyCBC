@@ -6,16 +6,18 @@ import time
 LC = CBC_lib.Backbone()
 LC.start_hats()
 
-LC.fs = 1_000  # 1 kHz
-F_test = 1
+LC.fs = 2000  # 1 kHz
+F_test = 0.75
 omega_test = 100
 dt = 1.0 / LC.fs
 
 # Preallocate
-time_length = int(5 * LC.fs)
+time_length = int(4 * LC.fs)
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
+displacement = np.zeros(time_length)
 time_vec = np.zeros(time_length)
+F_test = np.linspace(0.01, 1.5, time_length)
 
 # Rolling average buffer
 num_avg = 5
@@ -37,16 +39,22 @@ rotator = complex(cos_omega_dt, sin_omega_dt)
 
 start_time = time.perf_counter()
 target_time = start_time
-print(start_time)
+
 for idx in range(time_length):
+            
+    F = F_test[idx]
     # Cosine update
     cos_complex *= rotator
-    signal = F_test * cos_complex.real + 2.5
+    cos_real = cos_complex.real
+    signal = F * cos_real + 2.5
+
     LC.dac.a_out_write(0, signal)
 
     # One ADC read per channel
     load[idx] = (1 / 11.21) * 1e3 * LC.adc.a_in_read(LC.load_cell_channel)
+    #displacement[idx] = LC.adc.a_in_read(LC.read_channel)
     forcing[idx] = LC.adc.a_in_read(LC.read_channel)
+    #forcing[idx] = signal
     time_vec[idx] = time.perf_counter() - start_time
 
     # Precise busy-wait timing
@@ -62,9 +70,10 @@ forcing_amp = LC.get_amplitude(forcing)
 load_amp = LC.get_amplitude(load)
 
 forcingV2load_amp = load_amp / forcing_amp
-print("Load Amp.:", load_amp, "Forcing Amp.:", forcing_amp)
-print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load))
-print("Max Load:", np.max(load), "Min. Load:", np.min(load))
+
+#print("Load Amp.:", load_amp, "Forcing Amp.:", forcing_amp)
+#print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load))
+#print("Max Load:", np.max(load), "Min. Load:", np.min(load))
 
 # Phase/latency
 phase_diff = LC.compute_phase_difference(forcing, load)
@@ -72,6 +81,8 @@ print("Latency:", (phase_diff / (2 * np.pi)) / LC.fs)
 
 # Save and plot
 plt.plot(time_vec, load)
+#plt.plot(time_vec, displacement)
+plt.plot(time_vec, forcing)
 plt.show()
 
-LC.save_array(load, "Load_0p1.txt")
+# LC.save_array(load, "Load_0p1.txt")
