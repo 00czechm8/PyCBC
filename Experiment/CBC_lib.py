@@ -64,8 +64,8 @@ class Backbone:
 
     def __init__(self):
         self.filename = None
-        self.load_cell_constant = None
-        self.shaker_constant = None
+        self.load_cell_constant = 1000/11.21
+        self.shaker_constant = 30
         self.kp = None
         self.kd = None
         self.dac = None
@@ -78,7 +78,7 @@ class Backbone:
         self.reference_channel = 1
         self.ref_voltage = 2.5
         self.fs = None
-        self.dopp2vel_constant = 1.0
+        self.dopp2vel_constant = 5
 
     def start_hats(self):
         self.dac = mcc152(1)
@@ -128,56 +128,46 @@ class Backbone:
         adc = self.adc
         load_cell = self.load_cell_channel
 
-        t0 = time.time()
         maxlen = int(fs * duration)
         response = np.zeros(maxlen)
         F_act = np.zeros(maxlen)
         time_vec = np.zeros(maxlen)
         Ts = 1 / fs
 
-        num_avg = 5
-        # Pre-allocate for averaging
-        avg_samples_vel = np.zeros(num_avg)
-        avg_samples_LC = np.zeros(num_avg)
-
         # Initial velocity
-        for i in range(num_avg):
-            avg_samples_vel[i] = adc.a_in_read(channel_adc)
-        dopp_voltage = np.mean(avg_samples_vel)
+        dopp_voltage = adc.a_in_read(channel_adc)
+        t0 = time.perf_counter()
         velocity = doppV2vel_const * dopp_voltage
-
+        displacement = 0
         idx = 0
-        t_past = t = time.time()
+        t = time.perf_counter()
 
         while idx < maxlen:
-            now = time.time()
-            t_past = t
-            t = now
+            t = time.perf_counter()
             time_vec[idx] = t
 
             # Read velocity and load cell value (vectorized)
-            for i in range(num_avg):
-                avg_samples_vel[i] = adc.a_in_read(channel_adc)
-                avg_samples_LC[i] = adc.a_in_read(load_cell)
-            dopp_voltage = np.mean(avg_samples_vel)
-            force_voltage = np.mean(avg_samples_LC)
-            old_velocity = velocity
+            dopp_voltage = adc.a_in_read(channel_adc)
+            force_voltage = adc.a_in_read(load_cell)
             velocity = doppV2vel_const * dopp_voltage
-            force = LC_constant * force_voltage
+            F_act[idx] = LC_constant * force_voltage
             response[idx] = velocity
-            F_act[idx] = force
 
             # Finite Diff. for PD controller
-            accel = (velocity - old_velocity) / (t - t_past) if (t - t_past) > 0 else 0.0
+            #accel = (velocity - old_velocity) / (t - t_past) if (t - t_past) > 0 else 0.0
+
+            displacement += velocity
 
             # Send control update
             elapsed = t - t0
-            u = shaker_constant * F * np.cos(2 * np.pi * omega * elapsed) + kp * (x_star(elapsed) - velocity) + kd * (x_dot_star(elapsed) - accel)+2.5
-            dac.a_out_write(channel_dac, u)
+            u =  (F/shaker_constant) * np.cos(2 * np.pi * omega * elapsed) + kp * (x_star(elapsed) - displacement) + kd * (x_dot_star(elapsed) - velocity)+2.5
+            dac.a_out_write(channel_dac, max(u, 2.25))
             idx += 1
-            time.sleep(Ts)
+            target_time += Ts
+            while target_time <= time.perf_counter():
+                pass
 
-        return response, F_act, time
+        return response, F_act, time_vec
 
     def segment_signal(self, signal, forcing, fs):
         """

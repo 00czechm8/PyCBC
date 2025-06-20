@@ -6,18 +6,18 @@ import time
 LC = CBC_lib.Backbone()
 LC.start_hats()
 
-LC.fs = 2000  # 1 kHz
+LC.fs = 1000  # 1 kHz
 F_test = 0.75
-omega_test = 100
+omega_test = 10
 dt = 1.0 / LC.fs
 
 # Preallocate
-time_length = int(4 * LC.fs)
+time_length = int(20 * LC.fs)
 load = np.zeros(time_length)
 forcing = np.zeros(time_length)
-displacement = np.zeros(time_length)
+velocity = np.zeros(time_length)
 time_vec = np.zeros(time_length)
-F_test = np.linspace(0.01, 1.5, time_length)
+F_test = np.linspace(0.75, 0.75, time_length)
 
 # Rolling average buffer
 num_avg = 5
@@ -52,7 +52,7 @@ for idx in range(time_length):
 
     # One ADC read per channel
     load[idx] = (1 / 11.21) * 1e3 * LC.adc.a_in_read(LC.load_cell_channel)
-    #displacement[idx] = LC.adc.a_in_read(LC.read_channel)
+    velocity[idx] = LC.adc.a_in_read(2)
     forcing[idx] = LC.adc.a_in_read(LC.read_channel)
     #forcing[idx] = signal
     time_vec[idx] = time.perf_counter() - start_time
@@ -71,6 +71,8 @@ load_amp = LC.get_amplitude(load)
 
 forcingV2load_amp = load_amp / forcing_amp
 
+
+displacement = 0.2*np.cumsum(velocity-np.mean(velocity))
 #print("Load Amp.:", load_amp, "Forcing Amp.:", forcing_amp)
 #print("Load Constant:", forcingV2load_amp, ", Pre-load:", np.mean(load))
 #print("Max Load:", np.max(load), "Min. Load:", np.min(load))
@@ -80,9 +82,9 @@ phase_diff = LC.compute_phase_difference(forcing, load)
 print("Latency:", (phase_diff / (2 * np.pi)) / LC.fs)
 
 # Save and plot
-plt.plot(time_vec, load)
-#plt.plot(time_vec, displacement)
+#plt.plot(time_vec, load)
+plt.plot(time_vec, displacement)
 plt.plot(time_vec, forcing)
 plt.show()
 
-# LC.save_array(load, "Load_0p1.txt")
+LC.save_array(load, "Load_0p1.txt")
