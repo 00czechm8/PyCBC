@@ -8,7 +8,7 @@ LC.start_hats()
 
 LC.fs = 1000  # 1 kHz
 F_test = 0.75
-omega_test = 10
+omega_test = 1
 dt = 1.0 / LC.fs
 
 # Preallocate
